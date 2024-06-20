@@ -30,8 +30,6 @@ import org.opensearch.flint.core.http.RetryableHttpAsyncClient;
  */
 public class OpenSearchClientUtils {
 
-  private static final String SERVICE_NAME = "es";
-
   /**
    * Metadata log index name prefix
    */
@@ -40,7 +38,7 @@ public class OpenSearchClientUtils {
   public static IRestHighLevelClient createClient(FlintOptions options) {
     RestClientBuilder
         restClientBuilder =
-        RestClient.builder(new HttpHost(options.getHost(), options.getPort(), options.getScheme()));
+        RestClient.builder(HttpHost.create(options.getHost()));
 
     if (options.getAuth().equals(FlintOptions.SIGV4_AUTH)) {
       restClientBuilder = configureSigV4Auth(restClientBuilder, options);
@@ -83,7 +81,7 @@ public class OpenSearchClientUtils {
     restClientBuilder.setHttpClientConfigCallback(builder -> {
           HttpAsyncClientBuilder delegate = builder.addInterceptorLast(
               new ResourceBasedAWSRequestSigningApacheInterceptor(
-                  SERVICE_NAME, options.getRegion(), customAWSCredentialsProvider.get(), metadataAccessAWSCredentialsProvider.get(), systemIndexName));
+                  options.getSigv4Service(), options.getRegion(), customAWSCredentialsProvider.get(), metadataAccessAWSCredentialsProvider.get(), systemIndexName));
           return RetryableHttpAsyncClient.builder(delegate, options);
         }
     );

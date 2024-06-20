@@ -16,7 +16,7 @@ import org.opensearch.common.xcontent.XContentType
 import org.opensearch.testcontainers.OpenSearchContainer
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
-import org.apache.spark.sql.flint.config.FlintSparkConf.{HOST_ENDPOINT, HOST_PORT, IGNORE_DOC_ID_COLUMN, REFRESH_POLICY}
+import org.apache.spark.sql.flint.config.FlintSparkConf.{AUTH, HOST_ENDPOINT, HOST_PORT, IGNORE_DOC_ID_COLUMN, REFRESH_POLICY, SCHEME, SIGV4_SERVICE}
 
 /**
  * Test required OpenSearch domain should extend OpenSearchSuite.
@@ -24,29 +24,37 @@ import org.apache.spark.sql.flint.config.FlintSparkConf.{HOST_ENDPOINT, HOST_POR
 trait OpenSearchSuite extends BeforeAndAfterAll {
   self: Suite =>
 
-  protected lazy val container = new OpenSearchContainer()
+  //protected lazy val container = new OpenSearchContainer()
 
-  protected lazy val openSearchPort: Int = container.port()
+  protected lazy val openSearchPort: Int = 443
 
-  protected lazy val openSearchHost: String = container.getHost
+  protected lazy val openSearchHost: String = "https://9hagv0jong5e14ltfy6l.us-west-2.aoss.amazonaws.com"
 
   protected lazy val openSearchClient = new RestHighLevelClient(
-    RestClient.builder(new HttpHost(openSearchHost, openSearchPort, "http")))
+    RestClient.builder(HttpHost.create(openSearchHost))
+      .setHttpClientConfigCallback((builder: HttpAsyncClientBuilder) => {
+    val delegate: HttpAsyncClientBuilder = builder.addInterceptorLast(
+      new ResourceBasedAWSRequestSigningApacheInterceptor("aoss", "us-west-2", customAWSCredentialsProvider.get, metadataAccessAWSCredentialsProvider.get, systemIndexName))
+    RetryableHttpAsyncClient.builder(delegate, options)
+  }))
 
   protected lazy val openSearchOptions =
     Map(
       s"${HOST_ENDPOINT.optionKey}" -> openSearchHost,
       s"${HOST_PORT.optionKey}" -> s"$openSearchPort",
+      s"${SCHEME.optionKey}" -> "https",
+      s"${AUTH.optionKey}" -> "sigv4",
+      s"${SIGV4_SERVICE.optionKey}" -> "aoss",
       s"${REFRESH_POLICY.optionKey}" -> "wait_for",
       s"${IGNORE_DOC_ID_COLUMN.optionKey}" -> "false")
 
   override def beforeAll(): Unit = {
-    container.start()
+    //container.start()
     super.beforeAll()
   }
 
   override def afterAll(): Unit = {
-    container.close()
+    //container.close()
     super.afterAll()
   }
 

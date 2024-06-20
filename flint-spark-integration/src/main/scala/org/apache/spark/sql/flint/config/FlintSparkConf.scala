@@ -57,6 +57,12 @@ object FlintSparkConf {
       "noauth(no auth), sigv4(sigv4 auth), basic(basic auth)")
     .createWithDefault(FlintOptions.NONE_AUTH)
 
+  val SIGV4_SERVICE = FlintConfig("spark.datasource.flint.sigv4.service")
+    .datasourceOption()
+    .doc("service for sigv4 auth. supported value: " +
+      "es, aoss")
+    .createWithDefault(FlintOptions.DEFAULT_SIGV4_SERVICE)
+
   val USERNAME = FlintConfig("spark.datasource.flint.auth.username")
     .datasourceOption()
     .doc("basic auth username")
@@ -258,6 +264,7 @@ case class FlintSparkConf(properties: JMap[String, String]) extends Serializable
       SCROLL_DURATION,
       SCHEME,
       AUTH,
+      SIGV4_SERVICE,
       MAX_RETRIES,
       RETRYABLE_HTTP_STATUS_CODES,
       REGION,

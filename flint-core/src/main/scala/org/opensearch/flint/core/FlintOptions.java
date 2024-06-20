@@ -49,6 +49,10 @@ public class FlintOptions implements Serializable {
 
   public static final String METADATA_ACCESS_AWS_CREDENTIALS_PROVIDER = "spark.metadata.accessAWSCredentialsProvider";
 
+  public static final String SIGV4_SERVICE = "sigv4.service";
+
+  public static final String DEFAULT_SIGV4_SERVICE = "es";
+
   /**
    * By default, customAWSCredentialsProvider and accessAWSCredentialsProvider are empty. use DefaultAWSCredentialsProviderChain.
    */
@@ -161,5 +165,9 @@ public class FlintOptions implements Serializable {
     // we did not expect this value could be large than 10mb = 10 * 1024 * 1024
     return (int) org.apache.spark.network.util.JavaUtils
         .byteStringAs(options.getOrDefault(BATCH_BYTES, DEFAULT_BATCH_BYTES), ByteUnit.BYTE);
+  }
+
+  public String getSigv4Service() {
+    return options.getOrDefault(SIGV4_SERVICE, DEFAULT_SIGV4_SERVICE);
   }
 }
