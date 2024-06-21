@@ -206,7 +206,7 @@ class FlintOpenSearchClientSuite extends AnyFlatSpec with OpenSearchSuite with M
           |  }
           |}""".stripMargin
 
-      val options = openSearchOptions + (s"${REFRESH_POLICY.optionKey}" -> "wait_for")
+      val options = openSearchOptions + (s"${REFRESH_POLICY.optionKey}" -> "false")
       val flintClient = new FlintOpenSearchClient(new FlintOptions(options.asJava))
       index(indexName, oneNodeSetting, mappings, Seq.empty)
       val writer = flintClient.createWriter(indexName)

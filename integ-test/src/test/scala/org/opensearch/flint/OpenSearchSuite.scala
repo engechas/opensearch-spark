@@ -5,15 +5,18 @@
 
 package org.opensearch.flint
 
+import com.amazonaws.auth.AWS4Signer
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain
 import org.apache.http.HttpHost
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest
 import org.opensearch.action.bulk.BulkRequest
 import org.opensearch.action.index.IndexRequest
 import org.opensearch.action.support.WriteRequest.RefreshPolicy
-import org.opensearch.client.{RequestOptions, RestClient, RestHighLevelClient}
+import org.opensearch.client.{Request, RequestOptions, RestClient, RestHighLevelClient}
 import org.opensearch.client.indices.{CreateIndexRequest, GetIndexRequest}
 import org.opensearch.common.xcontent.XContentType
-import org.opensearch.testcontainers.OpenSearchContainer
+import org.opensearch.flint.core.auth.AWSRequestSigningApacheInterceptor
 import org.scalatest.{BeforeAndAfterAll, Suite}
 
 import org.apache.spark.sql.flint.config.FlintSparkConf.{AUTH, HOST_ENDPOINT, HOST_PORT, IGNORE_DOC_ID_COLUMN, REFRESH_POLICY, SCHEME, SIGV4_SERVICE}
@@ -24,19 +27,37 @@ import org.apache.spark.sql.flint.config.FlintSparkConf.{AUTH, HOST_ENDPOINT, HO
 trait OpenSearchSuite extends BeforeAndAfterAll {
   self: Suite =>
 
-  //protected lazy val container = new OpenSearchContainer()
+  // protected lazy val container = new OpenSearchContainer()
 
   protected lazy val openSearchPort: Int = 443
 
-  protected lazy val openSearchHost: String = "https://9hagv0jong5e14ltfy6l.us-west-2.aoss.amazonaws.com"
+  protected lazy val openSearchHost: String =
+    "https://9hagv0jong5e14ltfy6l.us-west-2.aoss.amazonaws.com"
 
   protected lazy val openSearchClient = new RestHighLevelClient(
-    RestClient.builder(HttpHost.create(openSearchHost))
+    RestClient
+      .builder(HttpHost.create(openSearchHost))
       .setHttpClientConfigCallback((builder: HttpAsyncClientBuilder) => {
-    val delegate: HttpAsyncClientBuilder = builder.addInterceptorLast(
-      new ResourceBasedAWSRequestSigningApacheInterceptor("aoss", "us-west-2", customAWSCredentialsProvider.get, metadataAccessAWSCredentialsProvider.get, systemIndexName))
-    RetryableHttpAsyncClient.builder(delegate, options)
-  }))
+        val awsCredentialsProvider = new DefaultAWSCredentialsProviderChain
+        val awsSigner = new AWS4Signer()
+        awsSigner.setRegionName("us-west-2")
+        awsSigner.setServiceName("aoss")
+        builder.addInterceptorLast(
+          new AWSRequestSigningApacheInterceptor("aoss", awsSigner, awsCredentialsProvider))
+      }))
+
+  protected lazy val metadataOpenSearchClient = new RestHighLevelClient(
+    RestClient
+      .builder(HttpHost.create(
+        "https://search-big-domain-x5eqbzoy735ktw4p7piiblzqei.us-west-2.es.amazonaws.com"))
+      .setHttpClientConfigCallback((builder: HttpAsyncClientBuilder) => {
+        val awsCredentialsProvider = new DefaultAWSCredentialsProviderChain
+        val awsSigner = new AWS4Signer()
+        awsSigner.setRegionName("us-west-2")
+        awsSigner.setServiceName("es")
+        builder.addInterceptorLast(
+          new AWSRequestSigningApacheInterceptor("es", awsSigner, awsCredentialsProvider))
+      }))
 
   protected lazy val openSearchOptions =
     Map(
@@ -45,16 +66,16 @@ trait OpenSearchSuite extends BeforeAndAfterAll {
       s"${SCHEME.optionKey}" -> "https",
       s"${AUTH.optionKey}" -> "sigv4",
       s"${SIGV4_SERVICE.optionKey}" -> "aoss",
-      s"${REFRESH_POLICY.optionKey}" -> "wait_for",
+      s"${REFRESH_POLICY.optionKey}" -> "false",
       s"${IGNORE_DOC_ID_COLUMN.optionKey}" -> "false")
 
   override def beforeAll(): Unit = {
-    //container.start()
+    // container.start()
     super.beforeAll()
   }
 
   override def afterAll(): Unit = {
-    //container.close()
+    // container.close()
     super.afterAll()
   }
 
@@ -66,9 +87,8 @@ trait OpenSearchSuite extends BeforeAndAfterAll {
       f
     } finally {
       indexNames.foreach { indexName =>
-        openSearchClient
-          .indices()
-          .delete(new DeleteIndexRequest(indexName), RequestOptions.DEFAULT)
+        val deleteRequest = new Request("DELETE", "/" + indexName)
+        openSearchClient.getLowLevelClient.performRequest(deleteRequest)
       }
     }
   }
@@ -118,23 +138,29 @@ trait OpenSearchSuite extends BeforeAndAfterAll {
       new CreateIndexRequest(index)
         .settings(settings, XContentType.JSON)
         .mapping(mappings, XContentType.JSON),
-      RequestOptions.DEFAULT)
+      RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
 
     val getIndexResponse =
-      openSearchClient.indices().get(new GetIndexRequest(index), RequestOptions.DEFAULT)
+      openSearchClient
+        .indices()
+        .get(
+          new GetIndexRequest(index),
+          RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
     assume(getIndexResponse.getIndices.contains(index), s"create index $index failed")
 
     /**
      *   1. Wait until refresh the index.
      */
     if (docs.nonEmpty) {
-      val request = new BulkRequest().setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
+      val request = new BulkRequest().setRefreshPolicy(RefreshPolicy.NONE)
       for (doc <- docs) {
         request.add(new IndexRequest(index).source(doc, XContentType.JSON))
       }
 
       val response =
-        openSearchClient.bulk(request, RequestOptions.DEFAULT)
+        openSearchClient.bulk(
+          request,
+          RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
 
       assume(
         !response.hasFailures,

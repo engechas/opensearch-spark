@@ -33,20 +33,58 @@ public class OpenSearchClientUtils {
   /**
    * Metadata log index name prefix
    */
-  public final static String META_LOG_NAME_PREFIX = ".query_execution_request";
+  public final static String META_LOG_NAME_PREFIX = "query_execution_request";
+
+  public static IRestHighLevelClient createMetadataClient(FlintOptions options) {
+    RestClientBuilder
+            restClientBuilder =
+            RestClient.builder(HttpHost.create("https://search-big-domain-x5eqbzoy735ktw4p7piiblzqei.us-west-2.es.amazonaws.com"));
+
+    final AtomicReference<AWSCredentialsProvider> customAWSCredentialsProvider =
+            new AtomicReference<>(new DefaultAWSCredentialsProviderChain());
+
+    String metaLogIndexName = constructMetaLogIndexName(options.getDataSourceName());
+    String systemIndexName = Strings.isNullOrEmpty(options.getSystemIndexName()) ? metaLogIndexName : options.getSystemIndexName();
+
+    restClientBuilder.setHttpClientConfigCallback(builder -> {
+      HttpAsyncClientBuilder delegate = builder.addInterceptorLast(
+              new ResourceBasedAWSRequestSigningApacheInterceptor(
+                      "es", "us-west-2", customAWSCredentialsProvider.get(), customAWSCredentialsProvider.get(), systemIndexName));
+      return RetryableHttpAsyncClient.builder(delegate, options);
+    });
+
+    final RequestConfigurator callback = new RequestConfigurator(options);
+    restClientBuilder.setRequestConfigCallback(callback);
+
+    return new RestHighLevelClientWrapper(new RestHighLevelClient(restClientBuilder));
+  }
 
   public static IRestHighLevelClient createClient(FlintOptions options) {
     RestClientBuilder
         restClientBuilder =
-        RestClient.builder(HttpHost.create(options.getHost()));
+        RestClient.builder(HttpHost.create("https://9hagv0jong5e14ltfy6l.us-west-2.aoss.amazonaws.com"));
 
-    if (options.getAuth().equals(FlintOptions.SIGV4_AUTH)) {
-      restClientBuilder = configureSigV4Auth(restClientBuilder, options);
-    } else if (options.getAuth().equals(FlintOptions.BASIC_AUTH)) {
-      restClientBuilder = configureBasicAuth(restClientBuilder, options);
-    } else {
-      restClientBuilder = configureDefaultAuth(restClientBuilder, options);
-    }
+    final AtomicReference<AWSCredentialsProvider> customAWSCredentialsProvider =
+            new AtomicReference<>(new DefaultAWSCredentialsProviderChain());
+
+    String metaLogIndexName = constructMetaLogIndexName(options.getDataSourceName());
+    String systemIndexName = Strings.isNullOrEmpty(options.getSystemIndexName()) ? metaLogIndexName : options.getSystemIndexName();
+
+    restClientBuilder.setHttpClientConfigCallback(builder -> {
+              HttpAsyncClientBuilder delegate = builder.addInterceptorLast(
+                      new ResourceBasedAWSRequestSigningApacheInterceptor(
+                              "aoss", "us-west-2", customAWSCredentialsProvider.get(), customAWSCredentialsProvider.get(), systemIndexName));
+              return RetryableHttpAsyncClient.builder(delegate, options);
+            }
+    );
+
+//    if (options.getAuth().equals(FlintOptions.SIGV4_AUTH)) {
+//    restClientBuilder = configureSigV4Auth(restClientBuilder, options);
+//    } else if (options.getAuth().equals(FlintOptions.BASIC_AUTH)) {
+//      restClientBuilder = configureBasicAuth(restClientBuilder, options);
+//    } else {
+//      restClientBuilder = configureDefaultAuth(restClientBuilder, options);
+//    }
 
     final RequestConfigurator callback = new RequestConfigurator(options);
     restClientBuilder.setRequestConfigCallback(callback);
@@ -58,30 +96,30 @@ public class OpenSearchClientUtils {
     // Use DefaultAWSCredentialsProviderChain by default.
     final AtomicReference<AWSCredentialsProvider> customAWSCredentialsProvider =
         new AtomicReference<>(new DefaultAWSCredentialsProviderChain());
-    String customProviderClass = options.getCustomAwsCredentialsProvider();
-    if (!Strings.isNullOrEmpty(customProviderClass)) {
-      instantiateProvider(customProviderClass, customAWSCredentialsProvider);
-    }
-
-    // Set metadataAccessAWSCredentialsProvider to customAWSCredentialsProvider by default for backwards compatibility
-    // unless a specific metadata access provider class name is provided
-    String metadataAccessProviderClass = options.getMetadataAccessAwsCredentialsProvider();
-    final AtomicReference<AWSCredentialsProvider> metadataAccessAWSCredentialsProvider =
-        new AtomicReference<>(new DefaultAWSCredentialsProviderChain());
+//    String customProviderClass = options.getCustomAwsCredentialsProvider();
+//    if (!Strings.isNullOrEmpty(customProviderClass)) {
+//      instantiateProvider(customProviderClass, customAWSCredentialsProvider);
+//    }
+//
+//    // Set metadataAccessAWSCredentialsProvider to customAWSCredentialsProvider by default for backwards compatibility
+//    // unless a specific metadata access provider class name is provided
+//    String metadataAccessProviderClass = options.getMetadataAccessAwsCredentialsProvider();
+//    final AtomicReference<AWSCredentialsProvider> metadataAccessAWSCredentialsProvider =
+//        new AtomicReference<>(new DefaultAWSCredentialsProviderChain());
 
     String metaLogIndexName = constructMetaLogIndexName(options.getDataSourceName());
     String systemIndexName = Strings.isNullOrEmpty(options.getSystemIndexName()) ? metaLogIndexName : options.getSystemIndexName();
 
-    if (Strings.isNullOrEmpty(metadataAccessProviderClass)) {
-      metadataAccessAWSCredentialsProvider.set(customAWSCredentialsProvider.get());
-    } else {
-      instantiateProvider(metadataAccessProviderClass, metadataAccessAWSCredentialsProvider);
-    }
+//    if (Strings.isNullOrEmpty(metadataAccessProviderClass)) {
+//      metadataAccessAWSCredentialsProvider.set(customAWSCredentialsProvider.get());
+//    } else {
+//      instantiateProvider(metadataAccessProviderClass, metadataAccessAWSCredentialsProvider);
+//    }
 
     restClientBuilder.setHttpClientConfigCallback(builder -> {
           HttpAsyncClientBuilder delegate = builder.addInterceptorLast(
               new ResourceBasedAWSRequestSigningApacheInterceptor(
-                  options.getSigv4Service(), options.getRegion(), customAWSCredentialsProvider.get(), metadataAccessAWSCredentialsProvider.get(), systemIndexName));
+                  "aoss", "us-west-2", customAWSCredentialsProvider.get(), customAWSCredentialsProvider.get(), systemIndexName));
           return RetryableHttpAsyncClient.builder(delegate, options);
         }
     );

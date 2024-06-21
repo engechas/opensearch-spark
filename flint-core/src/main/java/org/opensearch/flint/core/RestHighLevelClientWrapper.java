@@ -21,6 +21,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
+import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestHighLevelClient;
 import org.opensearch.client.indices.CreateIndexRequest;
@@ -30,6 +31,7 @@ import org.opensearch.client.indices.GetIndexResponse;
 import org.opensearch.client.indices.PutMappingRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import static org.opensearch.flint.core.metrics.MetricConstants.*;
 
@@ -51,67 +53,80 @@ public class RestHighLevelClientWrapper implements IRestHighLevelClient {
 
     @Override
     public BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
-        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.bulk(bulkRequest, options));
+        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.bulk(bulkRequest, convertRequestOptions(options)));
     }
 
     @Override
     public ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
-        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.clearScroll(clearScrollRequest, options));
+        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.clearScroll(clearScrollRequest, convertRequestOptions(options)));
     }
 
     @Override
     public CreateIndexResponse createIndex(CreateIndexRequest createIndexRequest, RequestOptions options) throws IOException {
-        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.indices().create(createIndexRequest, options));
+        createIndexRequest.setTimeout(null);
+        createIndexRequest.setMasterTimeout(null);
+        createIndexRequest.setClusterManagerTimeout(null);
+        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.indices().create(createIndexRequest, convertRequestOptions(options)));
     }
 
     @Override
     public void updateIndexMapping(PutMappingRequest putMappingRequest, RequestOptions options) throws IOException {
-        execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.indices().putMapping(putMappingRequest, options));
+        putMappingRequest.setTimeout(null);
+        putMappingRequest.setMasterTimeout(null);
+        putMappingRequest.setClusterManagerTimeout(null);
+        execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.indices().putMapping(putMappingRequest, convertRequestOptions(options)));
     }
 
     @Override
     public void deleteIndex(DeleteIndexRequest deleteIndexRequest, RequestOptions options) throws IOException {
-        execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.indices().delete(deleteIndexRequest, options));
+        Request deleteRequest = new Request("DELETE", "/" + Arrays.stream(deleteIndexRequest.indices()).findFirst().get());
+        execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.getLowLevelClient().performRequest(deleteRequest));
     }
 
     @Override
     public DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
-        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.delete(deleteRequest, options));
+        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.delete(deleteRequest, convertRequestOptions(options)));
     }
 
     @Override
     public GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
-        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.get(getRequest, options));
+        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.get(getRequest, convertRequestOptions(options)));
     }
 
     @Override
     public GetIndexResponse getIndex(GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
-        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.indices().get(getIndexRequest, options));
+        getIndexRequest.setTimeout(null);
+        getIndexRequest.setMasterTimeout(null);
+        getIndexRequest.setClusterManagerTimeout(null);
+        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.indices().get(getIndexRequest, convertRequestOptions(options)));
     }
 
     @Override
     public IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
-        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.index(indexRequest, options));
+        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.index(indexRequest, convertRequestOptions(options)));
     }
 
     @Override
     public Boolean doesIndexExist(GetIndexRequest getIndexRequest, RequestOptions options) throws IOException {
-        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.indices().exists(getIndexRequest, options));
+        getIndexRequest.setTimeout(null);
+        getIndexRequest.setMasterTimeout(null);
+        getIndexRequest.setClusterManagerTimeout(null);
+        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.indices().exists(getIndexRequest, convertRequestOptions(options)));
     }
 
     @Override
     public SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
-        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.search(searchRequest, options));
+        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.search(searchRequest, convertRequestOptions(options)));
     }
 
     @Override
     public SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
-        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.scroll(searchScrollRequest, options));
+        return execute(OS_READ_OP_METRIC_PREFIX, () -> client.scroll(searchScrollRequest, convertRequestOptions(options)));
     }
 
     @Override
     public UpdateResponse update(UpdateRequest updateRequest, RequestOptions options) throws IOException {
-        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.update(updateRequest, options));
+        return execute(OS_WRITE_OP_METRIC_PREFIX, () -> client.update(updateRequest, convertRequestOptions(options)));
     }
 
     /**
@@ -147,5 +162,9 @@ public class RestHighLevelClientWrapper implements IRestHighLevelClient {
     @Override
     public void close() throws IOException {
         client.close();
+    }
+
+    private RequestOptions convertRequestOptions(RequestOptions options) {
+        return options.toBuilder().addHeader("x-amz-content-sha256", "required").build();
     }
 }

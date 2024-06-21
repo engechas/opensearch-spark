@@ -16,7 +16,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.when
 import org.mockito.invocation.InvocationOnMock
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest
-import org.opensearch.client.RequestOptions
+import org.opensearch.client.{Request, RequestOptions}
 import org.opensearch.client.indices.GetIndexRequest
 import org.opensearch.flint.OpenSearchSuite
 import org.scalatestplus.mockito.MockitoSugar.mock
@@ -40,7 +40,7 @@ trait FlintSparkSuite extends QueryTest with FlintSuite with OpenSearchSuite wit
     val conf = super.sparkConf
       .set(HOST_ENDPOINT.key, openSearchHost)
       .set(HOST_PORT.key, openSearchPort.toString)
-      .set(REFRESH_POLICY.key, "true")
+      .set(REFRESH_POLICY.key, "false")
       // Disable mandatory checkpoint for test convenience
       .set(CHECKPOINT_MANDATORY.key, "false")
     conf
@@ -69,16 +69,26 @@ trait FlintSparkSuite extends QueryTest with FlintSuite with OpenSearchSuite wit
         flint.deleteIndex(testIndex)
         flint.vacuumIndex(testIndex)
       } catch {
-        case _: IllegalStateException =>
-          if (openSearchClient
-              .indices()
-              .exists(new GetIndexRequest(testIndex), RequestOptions.DEFAULT)) {
-            openSearchClient
-              .indices()
-              .delete(new DeleteIndexRequest(testIndex), RequestOptions.DEFAULT)
-          }
+        case _: IllegalStateException => deleteTheIndex(testIndex);
       }
     })
+  }
+
+  def deleteTheIndex(str: String): Unit = {
+    val getIndexRequest = new GetIndexRequest(str)
+    getIndexRequest.setTimeout(null)
+    getIndexRequest.setClusterManagerTimeout(null)
+    getIndexRequest.setMasterTimeout(null)
+    if (openSearchClient
+        .indices()
+        .exists(
+          getIndexRequest,
+          RequestOptions.DEFAULT.toBuilder
+            .addHeader("x-amz-content-sha256", "required")
+            .build())) {
+      val deleteRequest = new Request("DELETE", "/" + str)
+      openSearchClient.getLowLevelClient.performRequest(deleteRequest)
+    }
   }
 
   def deleteDirectory(dirPath: String): Try[Unit] = {

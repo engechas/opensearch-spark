@@ -40,13 +40,13 @@ trait OpenSearchTransactionSuite extends FlintSparkSuite {
 
   override def beforeEach(): Unit = {
     super.beforeEach()
-    openSearchClient
+    metadataOpenSearchClient
       .indices()
       .create(
         new CreateIndexRequest(testMetaLogIndex)
           .mapping(QUERY_EXECUTION_REQUEST_MAPPING, XContentType.JSON)
           .settings(QUERY_EXECUTION_REQUEST_SETTINGS, XContentType.JSON),
-        RequestOptions.DEFAULT)
+        RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
   }
 
   override def afterEach(): Unit = {
@@ -55,41 +55,51 @@ trait OpenSearchTransactionSuite extends FlintSparkSuite {
   }
 
   def latestLogEntry(latestId: String): Map[String, AnyRef] = {
-    val response = openSearchClient
-      .get(new GetRequest(testMetaLogIndex, latestId), RequestOptions.DEFAULT)
+    val response = metadataOpenSearchClient
+      .get(
+        new GetRequest(testMetaLogIndex, latestId),
+        RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
 
     Option(response.getSourceAsMap).getOrElse(Collections.emptyMap()).asScala.toMap
   }
 
   def createLatestLogEntry(latest: FlintMetadataLogEntry): Unit = {
-    openSearchClient.index(
+    metadataOpenSearchClient.index(
       new IndexRequest()
         .index(testMetaLogIndex)
         .id(latest.id)
         .source(latest.toJson, XContentType.JSON),
-      RequestOptions.DEFAULT)
+      RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
   }
 
   def updateLatestLogEntry(latest: FlintMetadataLogEntry, newState: IndexState): Unit = {
-    openSearchClient.update(
+    metadataOpenSearchClient.update(
       new UpdateRequest(testMetaLogIndex, latest.id)
         .doc(latest.copy(state = newState).toJson, XContentType.JSON),
-      RequestOptions.DEFAULT)
+      RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
   }
 
   def deleteIndex(indexName: String): Unit = {
-    if (openSearchClient
+    if (metadataOpenSearchClient
         .indices()
-        .exists(new GetIndexRequest(indexName), RequestOptions.DEFAULT)) {
-      openSearchClient
+        .exists(
+          new GetIndexRequest(indexName),
+          RequestOptions.DEFAULT.toBuilder
+            .addHeader("x-amz-content-sha256", "required")
+            .build())) {
+      metadataOpenSearchClient
         .indices()
-        .delete(new DeleteIndexRequest(indexName), RequestOptions.DEFAULT)
+        .delete(
+          new DeleteIndexRequest(indexName),
+          RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
     }
   }
 
   def indexMapping(): String = {
     val response =
-      openSearchClient.indices.get(new GetIndexRequest(testMetaLogIndex), RequestOptions.DEFAULT)
+      metadataOpenSearchClient.indices.get(
+        new GetIndexRequest(testMetaLogIndex),
+        RequestOptions.DEFAULT.toBuilder.addHeader("x-amz-content-sha256", "required").build())
 
     response.getMappings.get(testMetaLogIndex).source().toString
   }

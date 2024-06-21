@@ -122,7 +122,7 @@ trait FlintJobExecutor {
     try {
       resultData.write
         .format("flint")
-        .option(REFRESH_POLICY.optionKey, "wait_for")
+        .option(REFRESH_POLICY.optionKey, "false")
         .mode("append")
         .save(resultIndex)
       IRestHighLevelClient.recordOperationSuccess(

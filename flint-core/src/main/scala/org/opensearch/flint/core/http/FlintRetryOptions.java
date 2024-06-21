@@ -33,7 +33,7 @@ public class FlintRetryOptions {
   public static final int DEFAULT_MAX_RETRIES = 3;
   public static final String MAX_RETRIES = "retry.max_retries";
 
-  public static final String DEFAULT_RETRYABLE_HTTP_STATUS_CODES = "429,502";
+  public static final String DEFAULT_RETRYABLE_HTTP_STATUS_CODES = "429,500,502,507";
   public static final String RETRYABLE_HTTP_STATUS_CODES = "retry.http_status_codes";
 
   /**

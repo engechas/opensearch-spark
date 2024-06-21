@@ -61,7 +61,7 @@ public class OpenSearchUpdater {
             assertIndexExist(client, indexName);
             UpdateRequest updateRequest = new UpdateRequest(indexName, id)
                     .doc(doc, XContentType.JSON)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
 
             if (upsert) {
                 updateRequest.docAsUpsert(true);

@@ -380,9 +380,9 @@ class FlintJobITSuite extends FlintSparkSuite with JobTest {
   }
 
   private def latestLogEntry(latestId: String): Map[String, AnyRef] = {
-    val response = openSearchClient
+    val response = metadataOpenSearchClient
       .get(
-        new GetRequest(s".query_execution_request_$dataSourceName", latestId),
+        new GetRequest(s"query_execution_request_$dataSourceName", latestId),
         RequestOptions.DEFAULT)
 
     Option(response.getSourceAsMap).getOrElse(Collections.emptyMap()).asScala.toMap
