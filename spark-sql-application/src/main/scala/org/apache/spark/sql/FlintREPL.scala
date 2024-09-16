@@ -8,18 +8,15 @@ package org.apache.spark.sql
 import java.net.ConnectException
 import java.util.concurrent.{ScheduledExecutorService, ScheduledFuture}
 import java.util.concurrent.atomic.AtomicInteger
-
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor, Future, TimeoutException}
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
-
 import com.codahale.metrics.Timer
 import org.opensearch.flint.common.model.{FlintStatement, InteractiveSession, SessionStates}
 import org.opensearch.flint.core.FlintOptions
 import org.opensearch.flint.core.logging.CustomLogging
 import org.opensearch.flint.core.metrics.MetricConstants
 import org.opensearch.flint.core.metrics.MetricsUtil.{getTimerContext, incrementCounter, registerGauge, stopTimer}
-
 import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationEnd}
@@ -27,6 +24,7 @@ import org.apache.spark.sql.FlintREPLConfConstants._
 import org.apache.spark.sql.SessionUpdateMode._
 import org.apache.spark.sql.flint.config.FlintSparkConf
 import org.apache.spark.util.ThreadUtils
+import org.json4s.JsonAST.JString
 
 object FlintREPLConfConstants {
   val HEARTBEAT_INTERVAL_MILLIS = 60000L
@@ -519,6 +517,15 @@ object FlintREPL extends Logging with FlintJobExecutor {
             flintStatement.running()
             statementExecutionManager.updateStatement(flintStatement)
             statementRunningCount.incrementAndGet()
+
+            CustomLogging.logError(s"GGGG statement: ${flintStatement.toString}")
+            val coveringIndexOptimizerOverride = flintStatement.context.get("spark.flint.optimizer.covering.enabled")
+            if (coveringIndexOptimizerOverride.nonEmpty) {
+              coveringIndexOptimizerOverride.get match {
+                case JString(str) => FlintSparkConf.OPTIMIZER_RULE_COVERING_INDEX_ENABLED.setOverride(str)
+                case _ => CustomLogging.logError("Bad type for spark.flint.optimizer.covering.enabled, skipping override")
+              }
+            }
 
             val statementTimerContext = getTimerContext(
               MetricConstants.STATEMENT_PROCESSING_TIME_METRIC)

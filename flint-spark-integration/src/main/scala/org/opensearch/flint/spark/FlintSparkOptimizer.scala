@@ -5,6 +5,7 @@
 
 package org.opensearch.flint.spark
 
+import org.opensearch.flint.core.logging.CustomLogging
 import org.opensearch.flint.spark.covering.ApplyFlintSparkCoveringIndex
 import org.opensearch.flint.spark.skipping.ApplyFlintSparkSkippingIndex
 
@@ -47,6 +48,8 @@ class FlintSparkOptimizer(spark: SparkSession) extends Rule[LogicalPlan] {
   }
 
   private def isCoveringIndexOptimizerEnabled: Boolean = {
-    FlintSparkConf().isCoveringIndexOptimizerEnabled
+    val isEnabled = FlintSparkConf().isCoveringIndexOptimizerEnabled
+    CustomLogging.logError(s"""ZZZZ is covering index optimizer enabled: ${isEnabled}""")
+    isEnabled
   }
 }

@@ -6,9 +6,8 @@
 package org.opensearch.flint.common.model
 
 import java.util.Locale
-
 import org.json4s.{Formats, NoTypeHints}
-import org.json4s.JsonAST.JString
+import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.native.JsonMethods.parse
 import org.json4s.native.Serialization
 
@@ -65,7 +64,7 @@ class FlintStatement(
 
   // Does not include context, which could contain sensitive information.
   override def toString: String =
-    s"FlintStatement(state=$state, statementId=$statementId, queryId=$queryId, submitTime=$submitTime, error=$error)"
+    s"FlintStatement(state=$state, statementId=$statementId, queryId=$queryId, submitTime=$submitTime, error=$error, context=$context)"
 }
 
 object FlintStatement {
@@ -83,8 +82,12 @@ object FlintStatement {
       case JString(str) => Some(str)
       case _ => None
     }
+    val statementContext: Map[String, Any] = (meta \ "statementContext") match {
+      case JObject(obj) => obj.toMap
+      case _ => Map.empty[String, Any]
+    }
 
-    new FlintStatement(state, query, statementId, queryId, submitTime, maybeError)
+    new FlintStatement(state, query, statementId, queryId, submitTime, maybeError, statementContext)
   }
 
   def serialize(flintStatement: FlintStatement): String = {

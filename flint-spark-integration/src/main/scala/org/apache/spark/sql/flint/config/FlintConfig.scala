@@ -49,6 +49,16 @@ abstract class FlintConfigEntry[T](val key: String, val doc: String, val prefix:
 
   protected val DATASOURCE_FLINT_PREFIX = "spark.datasource.flint."
 
+  private var overrideValue: Option[T] = None
+
+  def setOverride(value: T): Unit = {
+    overrideValue = Some(value)
+  }
+
+  def getOverride(): Option[T] = {
+    overrideValue
+  }
+
   protected def readOptionKeyString(reader: ConfigReader): Option[String] = reader.get(optionKey)
 
   /**
@@ -86,7 +96,8 @@ private class FlintConfigEntryWithDefault(
   override def defaultValue: Option[String] = Some(defaultValue)
 
   override def readFrom(reader: ConfigReader): String = {
-    readOptionKeyString(reader)
+    getOverride()
+      .orElse(readOptionKeyString(reader))
       .orElse(readFromConf())
       .getOrElse(defaultValue)
   }

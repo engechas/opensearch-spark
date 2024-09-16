@@ -6,9 +6,8 @@
 package org.opensearch.flint.spark.covering
 
 import scala.collection.JavaConverters._
-
 import org.mockito.ArgumentMatchers.{any, eq => mockitoEq}
-import org.mockito.Mockito.{mockStatic, when, RETURNS_DEEP_STUBS}
+import org.mockito.Mockito.{RETURNS_DEEP_STUBS, mockStatic, when}
 import org.opensearch.flint.common.metadata.log.FlintMetadataLogEntry
 import org.opensearch.flint.common.metadata.log.FlintMetadataLogEntry.IndexState.{ACTIVE, DELETED, IndexState}
 import org.opensearch.flint.core.{FlintClient, FlintClientBuilder, FlintOptions, MetaData}
@@ -16,14 +15,15 @@ import org.opensearch.flint.core.table.OpenSearchCluster
 import org.opensearch.flint.spark.FlintSpark
 import org.opensearch.flint.spark.FlintSparkIndex.generateSchemaJSON
 import org.opensearch.flint.spark.covering.FlintSparkCoveringIndex.getFlintIndexName
-import org.scalatest.matchers.{Matcher, MatchResult}
+import org.scalatest.matchers.{MatchResult, Matcher}
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar.mock
-
 import org.apache.spark.FlintSuite
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution.datasources.LogicalRelation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
+import org.apache.spark.sql.flint.config.FlintSparkConf
+import org.opensearch.flint.core.logging.CustomLogging
 
 class ApplyFlintSparkCoveringIndexSuite extends FlintSuite with Matchers {
 

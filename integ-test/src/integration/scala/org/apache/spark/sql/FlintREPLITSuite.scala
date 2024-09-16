@@ -199,6 +199,10 @@ class FlintREPLITSuite extends SparkFunSuite with OpenSearchSuite with JobTest {
   }
 
   def submitQuery(query: String, queryId: String, submitTime: Long): String = {
+    submitQuery(query, queryId, submitTime, "true")
+  }
+
+  def submitQuery(query: String, queryId: String, submitTime: Long, isCoveringIndexOptimizerEnabled: String): String = {
     val statementId = UUID.randomUUID().toString
 
     updater.upsert(
@@ -212,9 +216,171 @@ class FlintREPLITSuite extends SparkFunSuite with OpenSearchSuite with JobTest {
          |  "type": "statement",
          |  "statementId": "${statementId}",
          |  "queryId": "${queryId}",
-         |  "dataSourceName": "${dataSourceName}"
+         |  "dataSourceName": "${dataSourceName}",
+         |  "statementContext": {"spark.flint.optimizer.covering.enabled": "${isCoveringIndexOptimizerEnabled}"}
          |}""".stripMargin)
     statementId
+  }
+
+  test("coveringIndexOptimizerDynamicSetting") {
+    try {
+      createSession(jobRunId, "")
+      threadLocalFuture.set(startREPL())
+
+      val createStatement =
+        s"""
+           | CREATE TABLE $testTable
+           | (
+           |   name STRING,
+           |   age INT
+           | )
+           | USING CSV
+           | OPTIONS (
+           |  header 'false',
+           |  delimiter '\\t'
+           | )
+           |""".stripMargin
+      submitQuery(s"${makeJsonCompliant(createStatement)}", "96")
+
+      val insertStatement =
+        s"""
+           | INSERT INTO $testTable
+           | VALUES ('Hello', 30)
+           | """.stripMargin
+      submitQuery(s"${makeJsonCompliant(insertStatement)}", "97")
+
+      val coveringIndexQueryId = "98"
+      val coveringIndexQueryStartTime = System.currentTimeMillis()
+      val coveringIndexQuery = s"CREATE INDEX c1 on $testTable (name, age)".stripMargin
+      val coveringIndexStatementId = submitQuery(s"${makeJsonCompliant(coveringIndexQuery)}", coveringIndexQueryId)
+
+      val coveringIndexValidation: REPLResult => Boolean = result => {
+        assert(
+          result.results.isEmpty,
+          s"expected result size is 0, but got ${result.results.size}")
+        commonValidation(result, coveringIndexQueryId, coveringIndexQuery, coveringIndexQueryStartTime)
+        successValidation(result)
+        true
+      }
+      pollForResultAndAssert(coveringIndexValidation, coveringIndexQueryId)
+      assert(
+        !awaitConditionForStatementOrTimeout(
+          statement => {
+            statement.state == "success"
+          },
+          coveringIndexStatementId),
+        s"Fail to verify for $coveringIndexStatementId.")
+
+      val refreshQueryId = "99"
+      val refreshQueryStartTime = System.currentTimeMillis()
+      val refreshQuery = s"REFRESH INDEX c1 on $testTable"
+      val refreshStatementId = submitQuery(s"${makeJsonCompliant(refreshQuery)}", refreshQueryId)
+
+      val refreshValidation: REPLResult => Boolean = result => {
+        assert(
+          result.results.isEmpty,
+          s"expected result size is 0, but got ${result.results.size}")
+        commonValidation(result, refreshQueryId, refreshQuery, refreshQueryStartTime)
+        successValidation(result)
+        true
+      }
+      pollForResultAndAssert(refreshValidation, refreshQueryId)
+      assert(
+        !awaitConditionForStatementOrTimeout(
+          statement => {
+            statement.state == "success"
+          },
+          refreshStatementId),
+        s"Fail to verify for $refreshStatementId.")
+
+      val selectQueryId = "100"
+      val selectQueryStartTime = System.currentTimeMillis()
+      val selectQuery = s"SELECT name, age FROM $testTable".stripMargin
+      val selectStatementId = submitQuery(s"${makeJsonCompliant(selectQuery)}", selectQueryId, System.currentTimeMillis(), "false")
+
+      val selectQueryValidation: REPLResult => Boolean = result => {
+        assert(
+          result.results.size == 1,
+          s"expected result size is 1, but got ${result.results.size}")
+        val expectedResult = "{'name':'Hello','age':30}"
+        assert(
+          result.results(0).equals(expectedResult),
+          s"expected result is $expectedResult, but got ${result.results(0)}")
+        assert(
+          result.schemas.size == 2,
+          s"expected schema size is 2, but got ${result.schemas.size}")
+        val expectedZerothSchema = "{'column_name':'name','data_type':'string'}"
+        assert(
+          result.schemas(0).equals(expectedZerothSchema),
+          s"expected first field is $expectedZerothSchema, but got ${result.schemas(0)}")
+        val expectedFirstSchema = "{'column_name':'age','data_type':'integer'}"
+        assert(
+          result.schemas(1).equals(expectedFirstSchema),
+          s"expected second field is $expectedFirstSchema, but got ${result.schemas(1)}")
+        commonValidation(result, selectQueryId, selectQuery, selectQueryStartTime)
+        successValidation(result)
+        true
+      }
+      pollForResultAndAssert(selectQueryValidation, selectQueryId)
+      assert(
+        !awaitConditionForStatementOrTimeout(
+          statement => {
+            statement.state == "success"
+          },
+          selectStatementId),
+        s"Fail to verify for $selectStatementId.")
+
+      val selectQueryWithOptId = "101"
+      val selectQueryWithOptStartTime = System.currentTimeMillis()
+      val selectQueryWithOpt = s"SELECT name, age FROM $testTable".stripMargin
+      val selectWithOptStatementId = submitQuery(s"${makeJsonCompliant(selectQueryWithOpt)}", selectQueryWithOptId)
+
+      val selectQueryWithOptValidation: REPLResult => Boolean = result => {
+        assert(
+          result.results.size == 1,
+          s"expected result size is 1, but got ${result.results.size}")
+        val expectedResult = "{'name':'Hello','age':30}"
+        assert(
+          result.results(0).equals(expectedResult),
+          s"expected result is $expectedResult, but got ${result.results(0)}")
+        assert(
+          result.schemas.size == 2,
+          s"expected schema size is 2, but got ${result.schemas.size}")
+        val expectedZerothSchema = "{'column_name':'name','data_type':'string'}"
+        assert(
+          result.schemas(0).equals(expectedZerothSchema),
+          s"expected first field is $expectedZerothSchema, but got ${result.schemas(0)}")
+        val expectedFirstSchema = "{'column_name':'age','data_type':'integer'}"
+        assert(
+          result.schemas(1).equals(expectedFirstSchema),
+          s"expected second field is $expectedFirstSchema, but got ${result.schemas(1)}")
+        commonValidation(result, selectQueryWithOptId, selectQueryWithOpt, selectQueryWithOptStartTime)
+        successValidation(result)
+        true
+      }
+      pollForResultAndAssert(selectQueryWithOptValidation, selectQueryWithOptId)
+      assert(
+        !awaitConditionForStatementOrTimeout(
+          statement => {
+            statement.state == "success"
+          },
+          selectWithOptStatementId),
+        s"Fail to verify for $selectWithOptStatementId.")
+
+      // clean up
+      val dropStatement =
+        s"""DROP TABLE $testTable""".stripMargin
+      submitQuery(s"${makeJsonCompliant(dropStatement)}", "999")
+    } catch {
+      case e: Exception =>
+        logError("Unexpected exception", e)
+        assert(false, "Unexpected exception")
+    } finally {
+      waitREPLStop(threadLocalFuture.get())
+      threadLocalFuture.remove()
+
+      // shutdown hook is called after all tests have finished. We cannot verify if session has correctly been set in IT.
+    }
   }
 
   test("sanity") {

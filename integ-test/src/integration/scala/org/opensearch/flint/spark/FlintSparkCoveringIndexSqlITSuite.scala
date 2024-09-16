@@ -7,7 +7,6 @@ package org.opensearch.flint.spark
 
 import scala.Option.empty
 import scala.collection.JavaConverters.{mapAsJavaMapConverter, mapAsScalaMapConverter}
-
 import org.json4s.{Formats, NoTypeHints}
 import org.json4s.native.JsonMethods.parse
 import org.json4s.native.Serialization
@@ -17,7 +16,6 @@ import org.opensearch.flint.spark.covering.FlintSparkCoveringIndex.getFlintIndex
 import org.opensearch.flint.spark.skipping.FlintSparkSkippingIndex.getSkippingIndexName
 import org.scalatest.matchers.must.Matchers.defined
 import org.scalatest.matchers.should.Matchers.{convertToAnyShouldWrapper, the}
-
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.flint.config.FlintSparkConf.{CHECKPOINT_MANDATORY, OPTIMIZER_RULE_COVERING_INDEX_ENABLED}
 
